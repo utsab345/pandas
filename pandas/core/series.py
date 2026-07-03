@@ -7148,10 +7148,9 @@ class Series(base.IndexOpsMixin, NDFrame):  # type: ignore[misc]
     # Template-Based Arithmetic/Comparison Methods
 
     def _cmp_method(self, other, op) -> Series:
+        if isinstance(other, Series):
+            self, other = self._align_for_op(other)
         res_name = ops.get_op_result_name(self, other)
-
-        if isinstance(other, Series) and not self._indexed_same(other):
-            raise ValueError("Can only compare identically-labeled Series objects")
 
         lvalues = self._values
         rvalues = extract_array(other, extract_numpy=True, extract_range=True)

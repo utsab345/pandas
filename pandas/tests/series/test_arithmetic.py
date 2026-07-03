@@ -560,16 +560,18 @@ class TestSeriesFlexComparison:
 
 class TestSeriesComparison:
     def test_comparison_different_length(self):
-        a = Series(["a", "b", "c"])
-        b = Series(["b", "a"])
-        msg = "only compare identically-labeled Series"
-        with pytest.raises(ValueError, match=msg):
-            a < b
+        # GH#66133 - relational operators align by index like arithmetic ops
+        a = Series([1, 2, 3])
+        b = Series([3, 1])
+        result = a < b
+        expected = Series([True, False, False])
+        tm.assert_series_equal(result, expected)
 
         a = Series([1, 2])
         b = Series([2, 3, 4])
-        with pytest.raises(ValueError, match=msg):
-            a == b
+        result = a == b
+        expected = Series([False, False, False])
+        tm.assert_series_equal(result, expected)
 
     @pytest.mark.parametrize("opname", ["eq", "ne", "gt", "lt", "ge", "le"])
     def test_ser_flex_cmp_return_dtypes(self, opname):
@@ -794,6 +796,7 @@ class TestSeriesComparison:
     def test_comp_ops_df_compat(self, right_data, frame_or_series):
         # GH 1134
         # GH 50083 to clarify that index and columns must be identically labeled
+        # GH#66133 - Series relational operators now align by index like arithmetic
         left = Series([1, 2, 3], index=list("ABC"), name="x")
         right = Series(right_data, index=list("ABDC")[: len(right_data)], name="x")
         if frame_or_series is not Series:
@@ -803,26 +806,55 @@ class TestSeriesComparison:
             )
             left = left.to_frame()
             right = right.to_frame()
+            with pytest.raises(ValueError, match=msg):
+                left == right
+            with pytest.raises(ValueError, match=msg):
+                right == left
+            with pytest.raises(ValueError, match=msg):
+                left != right
+            with pytest.raises(ValueError, match=msg):
+                right != left
+            with pytest.raises(ValueError, match=msg):
+                left < right
+            with pytest.raises(ValueError, match=msg):
+                right < left
         else:
-            msg = (
-                f"Can only compare identically-labeled {frame_or_series.__name__} "
-                f"objects"
+            # Series aligns by index like arithmetic ops (GH#66133)
+            result = left == right
+            expected = Series(
+                [False, True, False, False], index=list("ABCD"), name="x"
             )
+            tm.assert_series_equal(result, expected)
+            result = left != right
+            expected = Series(
+                [True, False, True, True], index=list("ABCD"), name="x"
+            )
+            tm.assert_series_equal(result, expected)
+            result = left < right
+            expected = Series(
+                [True, False, False, False], index=list("ABCD"), name="x"
+            )
+            tm.assert_series_equal(result, expected)
 
-        with pytest.raises(ValueError, match=msg):
-            left == right
-        with pytest.raises(ValueError, match=msg):
-            right == left
-
-        with pytest.raises(ValueError, match=msg):
-            left != right
-        with pytest.raises(ValueError, match=msg):
-            right != left
-
-        with pytest.raises(ValueError, match=msg):
-            left < right
-        with pytest.raises(ValueError, match=msg):
-            right < left
+    @pytest.mark.parametrize(
+        "opname, expected_values",
+        [
+            ("eq", [False, False, True, False]),
+            ("ne", [True, True, False, True]),
+            ("lt", [False, False, False, False]),
+            ("le", [False, False, True, False]),
+            ("gt", [False, True, False, False]),
+            ("ge", [False, True, True, False]),
+        ],
+    )
+    def test_comparison_align_by_index(self, opname, expected_values):
+        # GH#66133 - relational operators align by index like arithmetic ops
+        left = Series([1, 3, 2], index=list("abc"))
+        right = Series([2, 2, 2], index=list("bcd"))
+        op = getattr(operator, opname)
+        result = op(left, right)
+        expected = Series(expected_values, index=list("abcd"))
+        tm.assert_series_equal(result, expected)
 
     def test_compare_series_interval_keyword(self):
         # GH#25338

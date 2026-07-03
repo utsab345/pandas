@@ -100,19 +100,23 @@ def test_compare_multi_index():
 
 
 def test_compare_different_indices():
-    msg = "Can only compare identically-labeled Series objects"
+    # GH#66133 - relational operators align by index, so compare() aligns too
     ser1 = pd.Series([1, 2, 3], index=["a", "b", "c"])
     ser2 = pd.Series([1, 2, 3], index=["a", "b", "d"])
-    with pytest.raises(ValueError, match=msg):
-        ser1.compare(ser2)
+    result = ser1.compare(ser2)
+    expected = pd.DataFrame({"self": [3.0, np.nan], "other": [np.nan, 3.0]},
+                            index=pd.Index(["c", "d"]))
+    tm.assert_frame_equal(result, expected)
 
 
 def test_compare_different_lengths():
-    msg = "Can only compare identically-labeled Series objects"
+    # GH#66133 - relational operators align by index, so compare() aligns too
     ser1 = pd.Series([1, 2, 3])
     ser2 = pd.Series([1, 2, 3, 4])
-    with pytest.raises(ValueError, match=msg):
-        ser1.compare(ser2)
+    result = ser1.compare(ser2)
+    expected = pd.DataFrame({"self": [np.nan], "other": [4.0]},
+                            index=pd.Index([3]))
+    tm.assert_frame_equal(result, expected)
 
 
 def test_compare_datetime64_and_string():
