@@ -573,9 +573,10 @@ class TestBase:
             index_a == series_d
         with pytest.raises(ValueError, match="Lengths must match"):
             index_a == array_d
-        msg = "Can only compare identically-labeled Series objects"
-        with pytest.raises(ValueError, match=msg):
-            series_a == series_d
+        # GH#66133 - Series relational operators align by index like arithmetic
+        result = series_a == series_d
+        expected = Series([True] + [False] * (n - 1))
+        tm.assert_series_equal(result, expected)
         with pytest.raises(ValueError, match="Lengths must match"):
             series_a == array_d
 
